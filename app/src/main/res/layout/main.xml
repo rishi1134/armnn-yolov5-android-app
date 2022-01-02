@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:orientation="vertical"
+    android:layout_width="fill_parent"
+    android:layout_height="fill_parent"
+    android:id="@+id/mainLayout" >
+
+    <LinearLayout
+        android:orientation="horizontal"
+        android:layout_width="fill_parent"
+        android:layout_height="wrap_content"
+        android:id="@+id/inputLayout" >
+
+        <Button
+            android:id="@+id/buttonImage"
+            android:layout_width="195dp"
+            android:layout_height="wrap_content"
+            android:text="Select Image"
+            android:enabled="true" />
+
+        <Button
+            android:id="@+id/buttonCamera"
+            android:layout_width="195dp"
+            android:layout_height="wrap_content"
+            android:enabled="true"
+            android:text="Capture" />
+
+    </LinearLayout>
+
+    <ImageView
+        android:id="@+id/imageView"
+        android:layout_width="fill_parent"
+        android:layout_height="fill_parent"
+        android:layout_weight="1" />
+
+    <LinearLayout
+        android:orientation="horizontal"
+        android:layout_width="fill_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:id="@+id/detectLayout" >
+
+        <Button
+            android:id="@+id/buttonDetect"
+            android:layout_width="195dp"
+            android:layout_height="wrap_content"
+            android:enabled="false"
+            android:text="Detect" />
+    </LinearLayout>
+
+</LinearLayout>
