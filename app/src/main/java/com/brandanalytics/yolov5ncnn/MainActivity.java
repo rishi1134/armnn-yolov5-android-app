@@ -38,11 +38,14 @@ import com.github.chrisbanes.photoview.PhotoViewAttacher;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
+import java.io.FilenameFilter;
 import java.io.InputStream;
 import java.io.IOException;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.Locale;
 
@@ -68,6 +71,14 @@ public class MainActivity extends Activity
 
     private PhotoViewAttacher mAttacher;
 
+    //Variables for Experimental inference
+    private static ArrayList<String> imageFiles = new ArrayList<String>();
+    private static int totalPreds = 0;
+    private String tlabel;
+    private static int tp[] = {0,0,0,0} , fp[] = {0,0,0,0}, fn[] = {0,0,0,0};
+    private final ArrayList<String> classNames= new ArrayList<String>(Arrays.asList("none","adidas","nike","asics"));
+
+
     /** Called when the activity is first created. */
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -79,7 +90,7 @@ public class MainActivity extends Activity
             Log.e("MainActivity", "All permissions not acquired");
         }
         else {
-            onCreateWithPermission();
+            onCreateWithPermission(1);
         }
     }
 
@@ -190,6 +201,97 @@ public class MainActivity extends Activity
                 }
             }
         };
+    }
+
+    //Experimental Batch Inference
+    @SuppressLint({"HandlerLeak", "ClickableViewAccessibility"})
+    private void onCreateWithPermission(int overload){
+        setContentView(R.layout.main);
+
+
+        listFilesRecursively("experimental");
+        buttonDetect = findViewById(R.id.buttonDetect);
+
+        runLoadAssetsThread();
+        try {
+            bgAssetThread.join();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+        runYoloInitThread();
+        yoloInitHandler = new Handler(){
+            @Override
+            public void handleMessage(Message msg) {}
+        };
+        detectHandler = new Handler() {
+            @Override
+            public void handleMessage(Message msg){}
+        };
+
+        try {
+            bgYoloInitThread.join();
+            buttonDetect.setEnabled(true);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+
+        buttonDetect.setOnClickListener(new View.OnClickListener() {
+            @SuppressLint("HandlerLeak")
+            @Override
+            public void onClick(View arg0) {
+                for (int i = 0; i < imageFiles.size(); i++) {
+                    Log.d("Experimental Inference", String.format("Image {%d/%d}: %s\n", i, imageFiles.size(), imageFiles.get(i)));
+                    InputStream loadbitmap = null;
+                    Log.d("Experimental Inference/Filename", imageFiles.get(i));
+                    try {
+                        tlabel = imageFiles.get(i).split("/")[1];
+                        loadbitmap = getAssets().open(imageFiles.get(i));
+                        bitmap = BitmapFactory.decodeStream(loadbitmap);
+                        loadbitmap.close();
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+
+                    if (bitmap == null)
+                        return;
+                    buttonDetect.setEnabled(false); //disable until detect finished
+
+                    try {
+                        bgYoloInitThread.join();
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+
+                    runDetectThread();
+                    try {
+                        bgThread.join();
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                    if (detections.length > 0) {
+                        totalPreds += detections.length;
+                        for (YoloV5Ncnn.Obj d : detections) {
+                            if (d.label.equals(tlabel))
+                                tp[classNames.indexOf(d.label)] += 1;
+                            else {
+                                fp[classNames.indexOf(d.label)] += 1;
+                                fn[classNames.indexOf(tlabel)] += 1;
+                            }
+                        }
+                    }
+                    else {
+                        Log.d("Experimental Inference", "No Detections");
+                    }
+                    bitmap = null;
+                }
+                Log.i("Experimetal Inference/TP",Arrays.toString(tp));
+                Log.i("Experimetal Inference/FP",Arrays.toString(fp));
+                Log.i("Experimetal Inference/FN",Arrays.toString(fn));
+                float totTP=0;
+                for(float t:tp) totTP+=t;
+                Log.i("Experimetal Inference/Acc:",String.valueOf(totTP/totalPreds));
+            }
+        });
     }
 
     @Override
@@ -461,5 +563,25 @@ public class MainActivity extends Activity
         image.requestLayout();
         dialog.setContentView(layout);
         dialog.show();
+    }
+
+    private boolean listFilesRecursively(String path){
+        String [] list;
+        try {
+            list = getAssets().list(path);
+            if (list.length > 0) {
+                for (String file : list) {
+                    if (!listFilesRecursively(path + "/" + file))
+                        return false;
+                    else {
+                        if(file.endsWith(".jpg") || file.endsWith(".png") || file.endsWith(".jpeg"))
+                            imageFiles.add(path + "/" + file);
+                    }
+                }
+            }
+        } catch (IOException e) {
+            return false;
+        }
+        return true;
     }
 }
